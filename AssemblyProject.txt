@@ -1,0 +1,398 @@
+; This is the Assembly Code
+
+; You may customize this and other start-up templates; 
+; The location of this template is c:\emu8086\inc\0_com_template.txt 
+ 
+org 100h 
+ 
+; Declare variables 
+ 
+.data 
+ 
+msg1 db "Please enter up to 256 characters (press Enter Key to finish): 
+",0dh,0ah,'$' 
+msg2 db "Number of substrings: $" 
+msg3 db "Total: $" 
+msg4 db "The string after the reverse: $" 
+ 
+inputArray db 256 dup (?) ;array for storing the input string 
+resultArray db 256 dup (?) ;array for storing the resulting string 
+ 
+totalString db " " ; this will store the total sum string 
+counterString db " " ; this is to store the counter of the substring 
+ 
+counter db 0 
+total dw 0 
+ 
+ ;This is the main code 
+;This program is take a string an evry integer in it, it counts the 
+substrings 
+;and sum then and print both. Also it reverse the substrings and print the 
+new entire string 
+;RESTRICTION: Cannot use number that is longer than 4 digit 
+.code 
+ 
+call read 
+call search_count 
+call sum 
+call write 
+call reverse 
+ 
+jmp END 
+ 
+ 
+;///////////////////////////////////////////////////// 
+;This procedure is to read the string from the console 
+;///////////////////////////////////////////////////// 
+ 
+read proc 
+ mov ah, 9 
+ mov dx, offset msg1 
+ int 21h ;display message 1 
+ 
+ mov bx, offset inputArray ; load bx with starting address of array 
+ mov di, 0 
+ mov cx, 256 
+  R1: mov ah, 01h 
+ int 21h ;get number from console 
+ 
+ cmp al, 0dh ;compare with ascii value for Enter Key 
+ je endRead 
+ mov [bx+di], al ;store the character into the array 
+ inc di 
+ loop R1 
+ endRead: mov [bx+di], 0dh 
+ ret 
+ 
+read endp 
+ 
+ 
+;////////////////////////////////////////////////////////////// 
+;This will search for the string that are number 
+;////////////////////////////////////////////////////////////// 
+search_count proc 
+ mov ax, 0 
+ mov di, 0 
+ mov si, 0 
+ 
+ mov resultArray[si], '|' 
+ inc si 
+ 
+ SC1: mov al, [bx+di] ; load the character 
+ cmp al, 0dh ; check if we are at the final of the array 
+ je endSearch 
+ cmp al, '0' ; compare with the ASCII value of '0' that is 30h 
+ jb Char  cmp al, '9' 
+ ja Char 
+ 
+ mov resultArray[si], al ; resultArray[si] <-- al 
+ inc di 
+ inc si 
+ jmp SC1 
+ 
+ Char: dec di 
+ cmp [bx+di],':' ;check if lower than character ':' 
+ jb flag1 
+ 
+ inc di 
+ inc di 
+ jmp SC1 
+ 
+ flag1: cmp [bx+di],'0'; check if lower than character '0' 
+ jb flag2 
+ 
+ mov resultArray[si], '|' ;use this to separe the values 
+ inc di 
+ inc di 
+ inc si 
+ jmp SC1 
+ 
+ flag2: inc di 
+ inc di 
+ jmp SC1 
+ 
+ endSearch: mov resultArray[si], '|'  
+ ret 
+ 
+search_count endp 
+ 
+ 
+ 
+;/////////////////////////////////////////////////////////// 
+;This procedure sums the numbers in the array and count them 
+; this will only sum 4 digits numbers maximum 
+;/////////////////////////////////////////////////////////// 
+sum proc 
+ pop bp 
+ mov ax, 0 
+ mov di, 0 
+ mov si, 0 ;this is the counter for the number array 
+ mov cx, 0 ;counter of the digits in number 
+ 
+ Sum1: mov al, resultArray[di] ; load the character 
+ cmp al,00h 
+ je Sum2 
+ push ax 
+ inc di 
+ jmp Sum1 
+ 
+ 
+ Sum2: pop ax 
+ cmp al, '|' 
+ je Sum3 
+ cmp al, 00h  je endSum 
+ 
+ cmp cx, 0 
+ je Digit0 
+ cmp cx, 1 
+ je Digit1 
+ cmp cx, 2 
+ je Digit2 
+ cmp cx, 3 
+ je Digit3 
+ 
+ Sum3: mov cx, 0 
+ inc counter 
+ jmp Sum2 
+ 
+ ;This will op the first digit and multiply by 1 
+ Digit0: inc cx 
+ push ax 
+ call convert2Int 
+ mov di, 1 
+ mul di 
+ add total, ax 
+ jmp Sum2 
+ ;This will op the second digit and multiply by 1 
+ Digit1: inc cx 
+ push ax 
+ call convert2Int 
+ mov di, 10 
+ mul di 
+ add total, ax  jmp Sum2 
+ ;This will op the third digit and multiply by 1 
+ Digit2: inc cx 
+ push ax 
+ call convert2Int 
+ mov di, 100 
+ mul di 
+ add total, ax 
+ jmp Sum2 
+ ;This will op the fourth digit and multiply by 1 
+ Digit3: inc cx 
+ push ax 
+ call convert2Int 
+ mov di, 1000 
+ mul di 
+ add total, ax 
+ jmp Sum2 
+ 
+ 
+ endSum: 
+ push bp 
+ ret 
+sum endp 
+ 
+ 
+;//////////////////////////////////////////////////////////////// 
+;This procedure conver one digit character into an integer number 
+;/////////////////////////////////////////////////////////////// 
+convert2Int proc 
+ pop dx  
+ pop ax 
+ sub ax, 30h ;subtract 30h to convert int a integer 
+ 
+ push dx 
+ ret 
+convert2Int endp 
+ 
+ 
+;////////////////////////////////////////////////////////////////////////////
+////////////////// 
+; This procedure will use to change from the hex to decimal and put in the 
+string to be display 
+;////////////////////////////////////////////////////////////////////////////
+///////////////// 
+convert2Str proc 
+ mov cx, 0 
+ mov bx, 10 
+ 
+ C2S1: 
+ mov dx, 0 
+ div bx ; divide it by 10 
+ add dl,'0' ; add to the remainder add it 30h 
+ push dx ; push the remainder 
+ inc cx ; increment the digit counter 
+ cmp ax, 10 ; compare if the quotient is 10 
+ jge C2S1 
+ add al,'0' ; add to the remainder 30h again 
+ mov [di], al ; put the caracter in the string 
+ 
+ C2S2:  pop ax ;pop form the stack the quotient 
+ inc di ; increment the adress 
+ mov [di],al ; put the quotient in the si 
+ loop C2S2 ; continue looping until cx =0 
+ inc di 
+ mov dl,'$' 
+ 
+ ret 
+convert2Str endp 
+ 
+ 
+;////////////////////////////////////////////////// 
+;This rocedure conver the counter and the total sum 
+;to srings and display them in th console 
+;////////////////////////////////////////////////// 
+write proc 
+ pop bp 
+ 
+ dec counter; 
+ 
+ mov ah, 2 
+ mov dx, 10 
+ int 21h ;display new line 
+ int 21h 
+ mov dx, 13 
+ int 21h ; dislay the carrige return 
+ 
+ mov ah, 9 
+ mov dx, offset msg2 
+ int 21h ;display message 2  
+ 
+ ;For changing and printing the counter of substring 
+ 
+ mov ah, 0 
+ mov al, counter 
+ mov di, offset counterString 
+ call convert2Str ; convert the counter into a string to be display 
+ 
+ 
+ ;printing the total of substring 
+ mov cx, 0 
+ mov ah, 2 
+ mov si, offset counterString 
+ 
+ PrintCounter: mov dl, [si] ; print the counter string 
+ int 21h 
+ inc cx 
+ inc si 
+ cmp cx, 4 
+ jb PrintCounter 
+ 
+ 
+ ;////////////////////////////////////////////////////////// 
+ ;This is for printing the total of the sum 
+ ;////////////////////////////////////////////////////////// 
+ 
+ 
+ mov ah, 2 
+ mov dx, 10  int 21h ;display new line 
+ int 21h 
+ mov dx, 13 
+ int 21h ; dislay the carrige return 
+ 
+ mov ah, 9 
+ mov dx, offset msg3 
+ int 21h ;display message 2 
+ 
+ 
+ ;For changing and printing the total of substring 
+ 
+ mov ax, total 
+ mov di, offset totalString 
+ call convert2Str ; convert the total into a string 
+ 
+ 
+ ;printing the total of substring 
+ mov cx, 0 
+ mov ah, 2 
+ mov si, offset totalString 
+ 
+ PrintTotal: mov dl, [si] ;print the total string 
+ int 21h 
+ inc cx 
+ inc si 
+ cmp cx, 4 
+ jb PrintTotal 
+ 
+ push bp  ret 
+ 
+write endp 
+ 
+ 
+ 
+;//////////////////////////////////////////////////////////////////////////// 
+;This procedure reverse all the numbers in the original string and print them 
+;//////////////////////////////////////////////////////////////////////////// 
+reverse proc 
+ pop bp 
+ 
+ 
+ ;We will first print the message and then the string 
+ initRev: mov ah, 2 
+ mov dx, 10 
+ int 21h ;display new line 
+ int 21h 
+ mov dx, 13 
+ int 21h ; dislay the carrige return 
+ 
+ mov ah, 9 
+ mov dx, offset msg4 
+ int 21h ;display message 4 
+ 
+ mov ah, 2 
+ mov dx, 10 
+ int 21h ;display new line 
+ int 21h 
+ mov dx, 13  int 21h ; dislay the carrige return 
+ 
+ 
+ ;Initialize again the variables 
+ mov ax, 0 
+ mov di, 0 
+ mov cx, 0 
+ mov bx, offset inputArray 
+ 
+ 
+ Rev1: mov al, [bx+di] ; load the character 
+ cmp al, 0dh ; check if we are at the final of the array 
+ je endReverse 
+ cmp al, '0' ; compare with the ASCII value of '0' that is 30h 
+ jb charPrint 
+ cmp al, '9' 
+ ja charPrint 
+ 
+ ;It means its a digit 
+ push ax 
+ inc cx 
+ inc di 
+ jmp Rev1 
+ 
+ charPrint: cmp cx, 0 ;This wil decide if to print the character or to 
+print the numbers in reverse 
+ je rev2 
+ 
+ ;Then it means there is something in the stack 
+ mov ah, 2  jmp reversePrint 
+ 
+ reversePrint: pop dx ;This will print the number in reverse from the 
+stack 
+ int 21h 
+ loop reversePrint 
+ jmp Rev1 
+ 
+ rev2: mov ah, 2 ; this will print the character to the screen 
+ mov dl, al 
+ int 21h 
+ inc di 
+ jmp Rev1 
+ 
+ endReverse: cmp cx, 0 ; check if there still something in the stack 
+ jne reversePrint ; if there still something print it. 
+ 
+ push bp 
+ ret 
+reverse endp 
+ 
+END: 
+   
